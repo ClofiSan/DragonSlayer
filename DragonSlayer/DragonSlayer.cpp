@@ -3,6 +3,34 @@
 
 #include "framework.h"
 #include "DragonSlayer.h"
+#include <Windows.h>
+#include <wrl.h>
+#include <dxgi1_4.h>
+#include <d3d12.h>
+#include <d3dcompiler.h>
+#include <DirectXMath.h>
+#include <DirectXPackedVector.h>
+#include <DirectXColors.h>
+#include <DirectXCollision.h>
+#include <string>
+#include <memory>
+#include <algorithm>
+#include <vector>
+#include <array>
+#include <unordered_map>
+#include <cstdint>
+#include <fstream>
+#include <sstream>
+#include <windowsx.h>
+#include <comdef.h>
+#include "Common/d3dx12.h"
+#include "Common/d3dUtil.h"
+using namespace Microsoft::WRL;
+
+#pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "D3D12.lib")
+#pragma comment(lib, "dxgi.lib")
+
 
 #define MAX_LOADSTRING 100
 
@@ -126,21 +154,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     switch (message)
     {
     case WM_COMMAND:
-        {
-            int wmId = LOWORD(wParam);
-            // 分析菜单选择:
-            switch (wmId)
-            {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
-            }
-        }
+        
         break;
     case WM_PAINT:
         {
@@ -159,22 +173,73 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-// “关于”框的消息处理程序。
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
 
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-    }
-    return (INT_PTR)FALSE;
+
+// 以下部分为d3d12 的渲染流程部分
+/*
+    开启D3D12调试层。
+    创建设备。
+    创建围栏，同步CPU和GPU。
+    获取描述符大小。
+    设置MSAA抗锯齿属性。
+    创建命令队列、命令列表、命令分配器。
+    创建交换链。
+    创建描述符堆。
+    创建描述符。
+    资源转换。
+    设置视口和裁剪矩形。
+    设置围栏刷新命令队列。
+    将命令从列表传至队列。
+
+*/
+ComPtr<IDXGIFactory4> dxgiFactory;
+ComPtr<ID3D12Device> mD3dDevice;
+ComPtr<ID3D12Fence> mFence;
+
+UINT mRTVDescriptorSize = 0;
+UINT mDSVDescriptorSize = 0;
+UINT mCBVDescriptorSize = 0;
+
+D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
+
+ComPtr<ID3D12CommandQueue> mCommandQueue;
+ComPtr<ID3D12CommandList> mCommandAllocator;
+ComPtr<ID3D12GraphicsCommandList> mCpuCommandList;
+
+void InitConfig()
+{
+    // 创建device 
+    ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)));
+     ThrowIfFailed(D3D12CreateDevice(nullptr, //此参数如果设置为nullptr，则使用主适配器
+        D3D_FEATURE_LEVEL_12_0,		//应用程序需要硬件所支持的最低功能级别
+        IID_PPV_ARGS(&mD3dDevice)));	//返回所建设备
+
+     // 围栏
+     ThrowIfFailed(mD3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));
+
+     // 描述符堆大小
+     mRTVDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+     mDSVDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+     mCBVDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+     //msaa
+    
+     msQualityLevels.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+     msQualityLevels.SampleCount = 4;
+     msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+     msQualityLevels.NumQualityLevels = 0;
+     ThrowIfFailed(
+         mD3dDevice->CheckFeatureSupport(
+             D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
+             &msQualityLevels,
+             sizeof(msQualityLevels)
+         )
+     );
 }
+
+void CreateCommand()
+{
+    
+}
+
+
